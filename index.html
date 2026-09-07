@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Análisis de Movimiento Deportivo</title>
+<style>
+  :root{
+    --bg:#0f1720;
+    --panel:#17212c;
+    --panel-2:#1e2a36;
+    --line:#2a3846;
+    --text:#eef2f5;
+    --text-dim:#9fb0bd;
+    --accent:#31d0c4;
+    --accent-dim:#1c7d76;
+    --warn:#f2b84b;
+    --danger:#ff6b52;
+    --good:#4ecb85;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    overscroll-behavior:none;}
+  #app{max-width:520px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; padding:20px 18px 32px;}
+
+  header{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:18px;}
+  header h1{font-size:19px; font-weight:600; margin:0; letter-spacing:.2px;}
+  header span{font-size:12px; color:var(--text-dim);}
+
+  .screen{display:none; flex:1; flex-direction:column;}
+  .screen.active{display:flex;}
+
+  /* --- pantalla inicial: elección del deporte --- */
+  .lead{font-size:15px; color:var(--text-dim); line-height:1.55; margin:0 0 22px;}
+  .sport-grid{display:grid; gap:12px;}
+  .sport-btn{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:18px 16px; text-align:left; color:var(--text); cursor:pointer;
+    display:flex; align-items:center; gap:14px; font-size:16px; font-weight:500;
+    transition:border-color .15s, background .15s;
+  }
+  .sport-btn:active{background:var(--panel-2); border-color:var(--accent-dim);}
+  .sport-icon{width:40px; height:40px; border-radius:10px; background:var(--panel-2);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .sport-icon svg{width:22px; height:22px; stroke:var(--accent); fill:none; stroke-width:1.8;}
+  .sport-sub{display:block; font-size:12.5px; font-weight:400; color:var(--text-dim); margin-top:2px;}
+
+  /* --- pantalla de movimiento / cámara --- */
+  .move-prompt{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:14px 16px; margin-bottom:14px;}
+  .move-prompt .tag{font-size:11.5px; color:var(--accent); font-weight:600; text-transform:uppercase; letter-spacing:.6px;}
+  .move-prompt p{margin:6px 0 0; font-size:16px; line-height:1.4;}
+
+  .cam-wrap{position:relative; width:100%; aspect-ratio:3/4; background:#000;
+    border-radius:var(--radius); overflow:hidden; border:1px solid var(--line);}
+  video{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform:scaleX(-1);}
+  canvas{position:absolute; inset:0; width:100%; height:100%; transform:scaleX(-1);}
+  .cam-status{position:absolute; top:10px; left:10px; right:10px; display:flex; justify-content:space-between;
+    font-size:12px; color:var(--text-dim); z-index:3;}
+  .rec-dot{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--danger); margin-right:5px;
+    animation:pulse 1s infinite;}
+  @keyframes pulse{0%,100%{opacity:1} 50%{opacity:.35}}
+  .countdown{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:64px; font-weight:600; color:#fff; background:rgba(0,0,0,.35); z-index:4;}
+
+  .cam-actions{display:flex; gap:10px; margin-top:14px;}
+  button.primary, button.secondary{
+    flex:1; padding:14px; border-radius:12px; font-size:15px; font-weight:600; border:none; cursor:pointer;
+  }
+  button.primary{background:var(--accent); color:#04211f;}
+  button.primary:disabled{background:var(--panel-2); color:var(--text-dim);}
+  button.secondary{background:transparent; color:var(--text-dim); border:1px solid var(--line);}
+  .hint{font-size:12.5px; color:var(--text-dim); text-align:center; margin-top:10px;}
+
+  /* --- informe --- */
+  .report-header{margin-bottom:18px;}
+  .report-header .sport-name{font-size:13px; color:var(--accent); font-weight:600; text-transform:uppercase; letter-spacing:.5px;}
+  .report-header h2{margin:4px 0 0; font-size:22px;}
+  .region-list{display:flex; flex-direction:column; gap:10px; margin-bottom:20px;}
+  .region-row{display:flex; align-items:center; justify-content:space-between; background:var(--panel);
+    border:1px solid var(--line); border-radius:12px; padding:13px 16px;}
+  .region-row .name{font-size:15px;}
+  .badge{font-size:12.5px; font-weight:600; padding:5px 11px; border-radius:20px;}
+  .badge.low{background:rgba(78,203,133,.15); color:var(--good);}
+  .badge.mid{background:rgba(242,184,75,.15); color:var(--warn);}
+  .badge.high{background:rgba(255,107,82,.15); color:var(--danger);}
+
+  .obs{background:var(--panel-2); border-left:3px solid var(--accent); border-radius:0 10px 10px 0;
+    padding:13px 15px; font-size:13.5px; color:var(--text-dim); line-height:1.6; margin-bottom:20px;}
+
+  .disclaimer{font-size:11.5px; color:var(--text-dim); text-align:center; line-height:1.6; margin-bottom:18px; opacity:.75;}
+
+  .report-actions{display:flex; gap:10px;}
+
+  /* --- comparativo --- */
+  .compare-table{width:100%; border-collapse:collapse; margin-bottom:18px; font-size:13px;}
+  .compare-table th, .compare-table td{padding:10px 8px; text-align:center; border-bottom:1px solid var(--line);}
+  .compare-table th{color:var(--text-dim); font-weight:500; font-size:12px;}
+  .compare-table td:first-child, .compare-table th:first-child{text-align:left; color:var(--text-dim);}
+  .dot{display:inline-block; width:14px; height:14px; border-radius:50%;}
+  .dot.low{background:var(--good);} .dot.mid{background:var(--warn);} .dot.high{background:var(--danger);}
+  .dot.empty{background:var(--line);}
+
+  /* --- prevención --- */
+  .anim-wrap{background:linear-gradient(180deg,#182430,#131c25); border:1px solid var(--line); border-radius:var(--radius);
+    padding:22px 18px 14px; display:flex; flex-direction:column; align-items:center; justify-content:center; margin-bottom:20px;}
+  .anim-wrap svg{width:210px; height:230px; overflow:visible;}
+  .anim-caption{font-size:11.5px; color:var(--text-dim); margin-top:8px; text-align:center;}
+
+  /* corpo com leve impulso no arremesso */
+  .hb-body{transform-origin:100px 175px; animation:hb-hop 2.6s ease-in-out infinite;}
+  @keyframes hb-hop{
+    0%, 38%{ transform:translateY(0) rotate(0deg); }
+    52%{ transform:translateY(-3px) rotate(-3deg); }
+    68%{ transform:translateY(0) rotate(2deg); }
+    100%{ transform:translateY(0) rotate(0deg); }
+  }
+  /* braço de arremesso: recuo, chicote e liberação */
+  .hb-arm{transform-origin:126px 96px; animation:hb-throw 2.6s cubic-bezier(.45,0,.2,1) infinite;}
+  @keyframes hb-throw{
+    0%{ transform:rotate(58deg); }
+    38%{ transform:rotate(58deg); }
+    55%{ transform:rotate(-18deg); }
+    72%{ transform:rotate(-34deg); }
+    100%{ transform:rotate(58deg); }
+  }
+  /* bola: acompanha a mão e "solta" no momento da liberação */
+  .hb-ball-grp{transform-origin:126px 96px; animation:hb-ball-follow 2.6s cubic-bezier(.45,0,.2,1) infinite;}
+  @keyframes hb-ball-follow{
+    0%{ transform:rotate(58deg) translate(0,0); opacity:1; }
+    38%{ transform:rotate(58deg) translate(0,0); opacity:1; }
+    55%{ transform:rotate(-18deg) translate(0,0); opacity:1; }
+    68%{ transform:rotate(-30deg) translate(10px,-4px); opacity:1; }
+    82%{ transform:rotate(-30deg) translate(34px,-14px); opacity:0; }
+    83%{ transform:rotate(58deg) translate(0,0); opacity:0; }
+    100%{ transform:rotate(58deg) translate(0,0); opacity:1; }
+  }
+  .hb-ball-spin{animation:hb-spin 2.6s linear infinite;}
+  @keyframes hb-spin{ to{ transform:rotate(360deg); } }
+  .hb-braid{transform-origin:116px 56px; animation:hb-braid 2.6s ease-in-out infinite;}
+  @keyframes hb-braid{
+    0%,38%{ transform:rotate(0deg); }
+    55%{ transform:rotate(10deg); }
+    100%{ transform:rotate(0deg); }
+  }
+  h3.section-title{font-size:15px; margin:0 0 12px;}
+  .tips-list{list-style:none; margin:0 0 22px; padding:0; display:flex; flex-direction:column; gap:10px;}
+  .tips-list li{background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:12px 14px 12px 42px; font-size:14px; line-height:1.45; position:relative;}
+  .tips-list li::before{content:"✓"; position:absolute; left:14px; top:12px; color:var(--good); font-weight:700;}
+  .prevention-note{font-size:12.5px; color:var(--text-dim); text-align:center; line-height:1.6; opacity:.8;}
+
+  footer.nav{display:flex; justify-content:center; gap:6px; padding-top:14px; margin-top:auto;}
+  .nav-btn{background:none; border:none; color:var(--text-dim); font-size:12.5px; padding:8px 8px; cursor:pointer;}
+  .nav-btn.active{color:var(--accent); font-weight:600;}
+
+  .permission-note{font-size:12.5px; color:var(--text-dim); text-align:center; padding:10px 0;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <h1>Análisis de movimiento</h1>
+    <span id="deviceBadge">sin conexión • en el dispositivo</span>
+  </header>
+
+  <!-- PANTALLA 1: elección del deporte -->
+  <section class="screen active" id="screen-choose">
+    <p class="lead">Elige un deporte, realiza el movimiento frente a la cámara y descubre qué partes del cuerpo son más exigidas.</p>
+    <div class="sport-grid">
+      <button class="sport-btn" data-sport="volei">
+        <span class="sport-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3c3 3 3 15 0 18M3 12c3-2 15-2 18 0"/></svg></span>
+        <span>Voleibol<span class="sport-sub">Movimiento: remate</span></span>
+      </button>
+      <button class="sport-btn" data-sport="handebol">
+        <span class="sport-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="3"/><path d="M12 10v6M8 21l4-5 4 5M6 13l6 1 6-1"/></svg></span>
+        <span>Balonmano<span class="sport-sub">Movimiento: lanzamiento</span></span>
+      </button>
+      <button class="sport-btn" data-sport="jiujitsu">
+        <span class="sport-icon"><svg viewBox="0 0 24 24"><path d="M12 3v6M7 12l5-3 5 3M6 21l6-6 6 6"/></svg></span>
+        <span>Jiu-jitsu<span class="sport-sub">Movimiento: proyección de cadera</span></span>
+      </button>
+    </div>
+  </section>
+
+  <!-- PANTALLA 2: cámara / captura -->
+  <section class="screen" id="screen-camera">
+    <div class="move-prompt">
+      <span class="tag" id="sportTag">Voleibol</span>
+      <p id="movePrompt">Realiza el movimiento de un remate de voleibol.</p>
+    </div>
+    <div class="cam-wrap" id="camWrap">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="overlay"></canvas>
+      <div class="cam-status">
+        <span id="camStatus">preparando cámara…</span>
+        <span id="frameCount"></span>
+      </div>
+      <div class="countdown" id="countdown" style="display:none;"></div>
+    </div>
+    <div class="cam-actions">
+      <button class="secondary" id="btnBack">Volver</button>
+      <button class="primary" id="btnStart" disabled>Iniciar análisis (5s)</button>
+    </div>
+    <p class="hint">Mantente con el cuerpo completo visible, a unos 2 metros de la cámara.</p>
+  </section>
+
+  <!-- PANTALLA 3: informe -->
+  <section class="screen" id="screen-report">
+    <div class="report-header">
+      <span class="sport-name" id="reportSport">Voleibol</span>
+      <h2 id="reportMove">Remate</h2>
+    </div>
+    <div class="region-list" id="regionList"></div>
+    <div class="obs" id="obsText"></div>
+    <p class="disclaimer">Este análisis es educativo y experimental, realizado a partir de estimaciones de movimiento por visión computacional. No es un diagnóstico médico.</p>
+    <div class="report-actions">
+      <button class="secondary" id="btnAgain">Probar otro deporte</button>
+      <button class="primary" id="btnCompare">Ver comparativo</button>
+    </div>
+  </section>
+
+  <!-- PANTALLA 4: comparativo -->
+  <section class="screen" id="screen-compare">
+    <p class="lead">Resultados guardados en esta sesión, comparando las regiones del cuerpo entre los deportes probados.</p>
+    <table class="compare-table" id="compareTable">
+      <thead><tr><th>Región</th><th>Voleibol</th><th>Balonmano</th><th>Jiu-jitsu</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button class="secondary" id="btnCompareBack">Volver al inicio</button>
+  </section>
+
+  <!-- PANTALLA 5: prevención de accidentes y traumas -->
+  <section class="screen" id="screen-prevention">
+    <p class="lead">Prevención de accidentes y traumas</p>
+
+    <div class="anim-wrap">
+      <svg viewBox="0 0 220 230" role="img" aria-label="Ilustración animada de una jugadora de balonmano lanzando la pelota">
+        <defs>
+          <linearGradient id="jerseyGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#3fe0d3"/>
+            <stop offset="100%" stop-color="#22a89d"/>
+          </linearGradient>
+          <linearGradient id="shortsGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#1f8f86"/>
+            <stop offset="100%" stop-color="#146b64"/>
+          </linearGradient>
+          <radialGradient id="skinGrad" cx="35%" cy="30%" r="75%">
+            <stop offset="0%" stop-color="#f2a679"/>
+            <stop offset="100%" stop-color="#dd8558"/>
+          </radialGradient>
+          <radialGradient id="ballGrad" cx="35%" cy="30%" r="75%">
+            <stop offset="0%" stop-color="#ff8a68"/>
+            <stop offset="100%" stop-color="#e8532f"/>
+          </radialGradient>
+        </defs>
+
+        <g class="hb-body">
+          <!-- sombra en el suelo -->
+          <ellipse cx="102" cy="216" rx="38" ry="7" fill="#000" opacity=".3"/>
+
+          <!-- pierna de apoyo (trasera) -->
+          <path d="M90 148 Q80 172 68 188 Q64 194 60 210" fill="none" stroke="url(#shortsGrad)" stroke-width="13" stroke-linecap="round"/>
+          <!-- pierna de impulso (delantera) -->
+          <path d="M108 148 Q122 168 130 184 Q134 194 138 208" fill="none" stroke="url(#jerseyGrad)" stroke-width="13" stroke-linecap="round"/>
+
+          <!-- zapatillas -->
+          <path d="M50 208 Q52 200 62 200 L64 210 Q64 217 56 217 L46 217 Q42 217 44 212 Z" fill="#eef2f5"/>
+          <path d="M50 208 L64 208" stroke="#c8d3da" stroke-width="1.6"/>
+          <path d="M130 206 Q132 198 142 198 L146 208 Q147 215 139 215 L128 215 Q124 215 126 210 Z" fill="#eef2f5"/>
+          <path d="M130 206 L145 206" stroke="#c8d3da" stroke-width="1.6"/>
+
+          <!-- shorts -->
+          <path d="M76 126 Q100 116 126 126 L128 152 Q100 162 74 152 Z" fill="url(#shortsGrad)"/>
+          <path d="M100 128 L98 152" stroke="#0d534d" stroke-width="1.5" opacity=".5"/>
+
+          <!-- brazo de apoyo (izquierdo, doblado frente al cuerpo) -->
+          <path d="M82 96 Q60 100 54 120 Q52 128 58 134" fill="none" stroke="url(#skinGrad)" stroke-width="10.5" stroke-linecap="round"/>
+
+          <!-- torso / camiseta -->
+          <path d="M74 94 Q100 78 128 94 L132 118 Q130 138 100 142 Q70 138 68 118 Z" fill="url(#jerseyGrad)"/>
+          <path d="M92 100 L84 128 M108 100 L116 128" stroke="#ffffff" stroke-width="2.5" opacity=".35" stroke-linecap="round"/>
+          <text x="100" y="122" text-anchor="middle" font-size="17" font-weight="700" fill="#0d534d" opacity=".55" font-family="inherit">7</text>
+
+          <!-- cuello -->
+          <rect x="93" y="82" width="14" height="14" rx="6" fill="url(#skinGrad)"/>
+
+          <!-- cabeza -->
+          <circle cx="100" cy="68" r="18" fill="url(#skinGrad)"/>
+          <!-- cabello + rabo de caballo -->
+          <path d="M83 60 Q88 46 100 45 Q114 44 119 58 Q121 62 118 66 Q116 54 100 52 Q88 52 84 66 Q82 63 83 60 Z" fill="#3a2a1e"/>
+          <path class="hb-braid" d="M116 56 Q133 58 132 78 Q131 90 120 94" fill="none" stroke="#3a2a1e" stroke-width="7.5" stroke-linecap="round"/>
+          <path d="M89 60 Q94 63 92 68" fill="none" stroke="#6b3d24" stroke-width="1.6" stroke-linecap="round" opacity=".7"/>
+          <!-- vincha -->
+          <path d="M83 60 Q100 50 119 58" fill="none" stroke="#ff6b52" stroke-width="4" stroke-linecap="round"/>
+          <!-- rostro sutil -->
+          <circle cx="106" cy="68" r="1.6" fill="#3a2a1e"/>
+          <path d="M100 76 Q105 79 110 75" fill="none" stroke="#a85a38" stroke-width="1.6" stroke-linecap="round"/>
+
+          <!-- brazo de lanzamiento (derecho) -->
+          <g class="hb-arm">
+            <path d="M126 96 Q148 88 156 66 Q158 60 155 55" fill="none" stroke="url(#skinGrad)" stroke-width="10.5" stroke-linecap="round"/>
+          </g>
+
+          <!-- pelota + líneas de movimiento -->
+          <g class="hb-ball-grp">
+            <g transform="translate(158,52)">
+              <path class="hb-speedlines" d="M-6 -14 L-16 -18 M-12 -4 L-24 -5 M-6 6 L-16 10" stroke="#31d0c4" stroke-width="2.4" stroke-linecap="round" opacity=".55"/>
+              <g class="hb-ball-spin">
+                <circle r="12" fill="url(#ballGrad)"/>
+                <path d="M-9 -5 Q0 4 9 -5 M-8 6 Q0 -3 8 6" stroke="#8a2c14" stroke-width="1.5" fill="none"/>
+              </g>
+            </g>
+          </g>
+        </g>
+      </svg>
+      <p class="anim-caption">Técnica correcta de lanzamiento: impulso de piernas, tronco estable y liberación con el brazo — así el hombro y el codo absorben menos impacto.</p>
+    </div>
+
+    <h3 class="section-title">Indicaciones para evitar traumas</h3>
+    <ul class="tips-list">
+      <li>Calienta y estira los músculos antes de jugar, dedicando al menos 5 a 10 minutos.</li>
+      <li>Usa la técnica correcta en cada movimiento, sin forzar hombros, codos y muñecas.</li>
+      <li>Hidrátate antes, durante y después de la actividad física.</li>
+      <li>Respeta los límites del cuerpo: descansa entre repeticiones y no ignores el dolor.</li>
+      <li>Utiliza calzado y protecciones adecuadas para cada deporte.</li>
+      <li>Fortalece progresivamente hombros, muñecas y tronco para soportar mejor los impactos.</li>
+    </ul>
+    <p class="prevention-note">Estas indicaciones son de carácter educativo y general. En caso de dolor persistente o lesión, busca siempre orientación médica.</p>
+  </section>
+
+  <footer class="nav">
+    <button class="nav-btn active" data-nav="screen-choose">Inicio</button>
+    <button class="nav-btn" data-nav="screen-compare">Comparativo</button>
+    <button class="nav-btn" data-nav="screen-prevention">Prevención</button>
+  </footer>
+</div>
+
+<script type="module">
+import { PoseLandmarker, FilesetResolver, DrawingUtils } from "./vision/vision_bundle.mjs";
+
+/* ---------- contenido de los deportes ---------- */
+const SPORTS = {
+  volei: { label: "Voleibol", move: "Remate", prompt: "Realiza el movimiento de un remate de voleibol." },
+  handebol: { label: "Balonmano", move: "Lanzamiento", prompt: "Ahora realiza un lanzamiento de balonmano." },
+  jiujitsu: { label: "Jiu-jitsu", move: "Proyección de cadera", prompt: "Realiza el movimiento de una proyección de cadera." }
+};
+const REGIONS = ["Columna", "Hombros", "Codos", "Muñecas", "Manos"];
+let currentSport = "volei";
+let results = {}; // { volei: {Columna:'mid', Hombros:'high', ...}, ... }
+
+/* ---------- navegación entre pantallas ---------- */
+function showScreen(id){
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.nav === id));
+}
+document.querySelectorAll(".nav-btn").forEach(b => b.onclick = () => showScreen(b.dataset.nav));
+
+document.querySelectorAll(".sport-btn").forEach(btn => {
+  btn.onclick = () => {
+    currentSport = btn.dataset.sport;
+    const s = SPORTS[currentSport];
+    document.getElementById("sportTag").textContent = s.label;
+    document.getElementById("movePrompt").textContent = s.prompt;
+    showScreen("screen-camera");
+    startCamera();
+  };
+});
+document.getElementById("btnBack").onclick = () => { stopCamera(); showScreen("screen-choose"); };
+document.getElementById("btnAgain").onclick = () => { showScreen("screen-choose"); };
+document.getElementById("btnCompare").onclick = () => { renderCompare(); showScreen("screen-compare"); };
+document.getElementById("btnCompareBack").onclick = () => showScreen("screen-choose");
+
+/* ---------- cámara + MediaPipe ---------- */
+const video = document.getElementById("video");
+const overlay = document.getElementById("overlay");
+const ctx = overlay.getContext("2d");
+let poseLandmarker, drawingUtils, rafId, stream;
+let capturing = false, framesBuf = [], lastTs = -1;
+
+async function initModel(){
+  if (poseLandmarker) return;
+  document.getElementById("camStatus").textContent = "cargando modelo…";
+  const vision = await FilesetResolver.forVisionTasks("./vision/wasm");
+  poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath: "./models/pose_landmarker_lite.task",
+      delegate: "GPU"
+    },
+    runningMode: "VIDEO",
+    numPoses: 1
+  });
+  drawingUtils = new DrawingUtils(ctx);
+}
+
+async function startCamera(){
+  try{
+    await initModel();
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+    video.srcObject = stream;
+    await video.play();
+    overlay.width = video.videoWidth; overlay.height = video.videoHeight;
+    document.getElementById("camStatus").textContent = "cámara lista";
+    document.getElementById("btnStart").disabled = false;
+    loop();
+  } catch(err){
+    document.getElementById("camStatus").textContent = "sin acceso a la cámara";
+    console.error(err);
+  }
+}
+function stopCamera(){
+  if (rafId) cancelAnimationFrame(rafId);
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  capturing = false;
+}
+
+function loop(){
+  rafId = requestAnimationFrame(loop);
+  if (!poseLandmarker || video.readyState < 2) return;
+  const ts = performance.now();
+  if (ts === lastTs) return;
+  lastTs = ts;
+  const result = poseLandmarker.detectForVideo(video, ts);
+  ctx.save();
+  ctx.clearRect(0, 0, overlay.width, overlay.height);
+  if (result.landmarks && result.landmarks[0]){
+    const lm = result.landmarks[0];
+    drawingUtils.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, { color: "#31d0c4", lineWidth: 3 });
+    drawingUtils.drawLandmarks(lm, { color: "#ff6b52", radius: 3 });
+    if (capturing) framesBuf.push({ t: ts, lm });
+  }
+  ctx.restore();
+  document.getElementById("frameCount").textContent = capturing ? framesBuf.length + " frames" : "";
+}
+
+document.getElementById("btnStart").onclick = () => runCountdownThenCapture();
+
+function runCountdownThenCapture(){
+  const cd = document.getElementById("countdown");
+  let n = 3;
+  cd.style.display = "flex"; cd.textContent = n;
+  document.getElementById("btnStart").disabled = true;
+  const iv = setInterval(() => {
+    n--;
+    if (n > 0){ cd.textContent = n; }
+    else{
+      clearInterval(iv);
+      cd.style.display = "none";
+      beginCapture();
+    }
+  }, 700);
+}
+
+function beginCapture(){
+  framesBuf = [];
+  capturing = true;
+  document.getElementById("camStatus").innerHTML = '<span class="rec-dot"></span>grabando';
+  setTimeout(() => {
+    capturing = false;
+    document.getElementById("camStatus").textContent = "cámara lista";
+    document.getElementById("btnStart").disabled = false;
+    analyzeAndReport();
+  }, 5000);
+}
+
+/* ---------- índices de landmarks (MediaPipe Pose) ---------- */
+const IDX = {
+  LSHO:11, RSHO:12, LELB:13, RELB:14, LWRI:15, RWRI:16,
+  LHIP:23, RHIP:24, NOSE:0
+};
+
+function angleAt(a, b, c){
+  // ángulo en b formado por a-b-c, en grados
+  const v1 = { x: a.x - b.x, y: a.y - b.y };
+  const v2 = { x: c.x - b.x, y: c.y - b.y };
+  const dot = v1.x*v2.x + v1.y*v2.y;
+  const m1 = Math.hypot(v1.x, v1.y), m2 = Math.hypot(v2.x, v2.y);
+  if (m1 === 0 || m2 === 0) return 0;
+  return Math.acos(Math.min(1, Math.max(-1, dot/(m1*m2)))) * 180/Math.PI;
+}
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+function level(v, lowMax, midMax){ return v <= lowMax ? "low" : (v <= midMax ? "mid" : "high"); }
+
+function analyzeMovement(frames){
+  if (frames.length < 5){
+    // pocos frames — devuelve una estimación neutral
+    return { Columna:"mid", Hombros:"mid", Codos:"mid", Muñecas:"mid", Manos:"low" };
+  }
+  let shoulderRange = {min:1, max:0}, wristSpeedMax = 0, elbowMinAngle = 180, trunkTiltMax = 0;
+  let prevWristL = null, prevWristR = null, prevT = null;
+  let leftTravel = 0, rightTravel = 0;
+
+  for (const f of frames){
+    const lm = f.lm;
+    const sh = lm[IDX.LSHO].y;
+    shoulderRange.min = Math.min(shoulderRange.min, sh);
+    shoulderRange.max = Math.max(shoulderRange.max, sh);
+
+    const elbowAngL = angleAt(lm[IDX.LSHO], lm[IDX.LELB], lm[IDX.LWRI]);
+    const elbowAngR = angleAt(lm[IDX.RSHO], lm[IDX.RELB], lm[IDX.RWRI]);
+    elbowMinAngle = Math.min(elbowMinAngle, elbowAngL, elbowAngR);
+
+    const hipMid = { x:(lm[IDX.LHIP].x+lm[IDX.RHIP].x)/2, y:(lm[IDX.LHIP].y+lm[IDX.RHIP].y)/2 };
+    const shMid = { x:(lm[IDX.LSHO].x+lm[IDX.RSHO].x)/2, y:(lm[IDX.LSHO].y+lm[IDX.RSHO].y)/2 };
+    const tilt = Math.abs(Math.atan2(shMid.x - hipMid.x, hipMid.y - shMid.y)) * 180/Math.PI;
+    trunkTiltMax = Math.max(trunkTiltMax, tilt);
+
+    if (prevWristL){
+      const dL = dist(lm[IDX.LWRI], prevWristL);
+      const dR = dist(lm[IDX.RWRI], prevWristR);
+      const dt = Math.max(1, f.t - prevT);
+      wristSpeedMax = Math.max(wristSpeedMax, Math.max(dL,dR) / dt * 1000);
+      leftTravel += dL; rightTravel += dR;
+    }
+    prevWristL = lm[IDX.LWRI]; prevWristR = lm[IDX.RWRI]; prevT = f.t;
+  }
+
+  const shoulderAmp = shoulderRange.max - shoulderRange.min; // 0..~0.3 típico
+  const asym = Math.abs(leftTravel - rightTravel) / Math.max(0.001, leftTravel + rightTravel);
+
+  return {
+    Columna: level(trunkTiltMax, 15, 35),
+    Hombros: level(shoulderAmp, 0.06, 0.14),
+    Codos: level(180 - elbowMinAngle, 60, 110),
+    Muñecas: level(wristSpeedMax, 0.4, 0.9),
+    Manos: level(asym, 0.15, 0.35)
+  };
+}
+
+const LEVEL_LABEL = { low: "Baja exigencia", mid: "Exigencia moderada", high: "Alta exigencia" };
+
+function buildObservation(scores){
+  const highs = Object.entries(scores).filter(([,v]) => v === "high").map(([k]) => k.toLowerCase());
+  if (highs.length === 0){
+    return "El movimiento presentó una exigencia baja a moderada en las regiones analizadas. Este análisis es educativo y no representa un diagnóstico de lesión.";
+  }
+  return `El movimiento presentó una exigencia alta en ${highs.join(" y ")}. Este análisis es educativo y no representa un diagnóstico de lesión.`;
+}
+
+function analyzeAndReport(){
+  const scores = analyzeMovement(framesBuf);
+  results[currentSport] = scores;
+
+  const s = SPORTS[currentSport];
+  document.getElementById("reportSport").textContent = s.label;
+  document.getElementById("reportMove").textContent = s.move;
+
+  const list = document.getElementById("regionList");
+  list.innerHTML = "";
+  REGIONS.forEach(region => {
+    const lvl = scores[region] || "mid";
+    const row = document.createElement("div");
+    row.className = "region-row";
+    row.innerHTML = `<span class="name">${region}</span><span class="badge ${lvl}">${LEVEL_LABEL[lvl]}</span>`;
+    list.appendChild(row);
+  });
+  document.getElementById("obsText").textContent = buildObservation(scores);
+
+  showScreen("screen-report");
+}
+
+function renderCompare(){
+  const tbody = document.querySelector("#compareTable tbody");
+  tbody.innerHTML = "";
+  REGIONS.forEach(region => {
+    const tr = document.createElement("tr");
+    let cells = `<td>${region}</td>`;
+    ["volei","handebol","jiujitsu"].forEach(sp => {
+      const lvl = results[sp] ? results[sp][region] : null;
+      cells += `<td>${lvl ? `<span class="dot ${lvl}"></span>` : `<span class="dot empty"></span>`}</td>`;
+    });
+    tr.innerHTML = cells;
+    tbody.appendChild(tr);
+  });
+}
+</script>
+</body>
+</html>

@@ -114,5 +114,5 @@ internet (después de tener el modelo descargado en "models/").
 IMPORTANTE
 ------------
 Esta aplicación es una demostración educativa para feria de ciencias.
-No realiza diagnóstico médico. Ver "documento-explicativo.docx" para el
+No realiza diagnóstico médico. Ver "documento-explicativo.pdf" para el
 detalle completo de alcances y limitaciones.
